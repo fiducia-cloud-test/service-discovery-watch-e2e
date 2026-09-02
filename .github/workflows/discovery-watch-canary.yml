@@ -1,0 +1,85 @@
+name: discovery watch canary
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "31 7 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  source-pinned-canary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out test overlay
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out pinned interfaces
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fiducia-cloud/fiducia-interfaces
+          ref: ee8fe09f846f5a776d156c0b0d0d15582c8bd539
+          path: sources/fiducia-interfaces
+          persist-credentials: false
+
+      - name: Check out pinned routing library
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fiducia-cloud/fiducia-routing.rs
+          ref: c694bc5c58587bec12989a347e926c0040aacada
+          path: sources/fiducia-routing.rs
+          persist-credentials: false
+
+      - name: Check out pinned Fiducia node
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fiducia-cloud/fiducia-node.rs
+          ref: 4a7baf3f447bcf760b5a4e3955ec38414dd8d330
+          path: sources/fiducia-node.rs
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Audit immutable source and PubSub recovery contract
+        run: node scripts/assert-discovery-watch-source.mjs
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.95.0
+          components: rustfmt
+
+      - name: Cache Rust build outputs
+        uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+        with:
+          workspaces: sources/fiducia-node.rs
+
+      - name: Verify source formatting
+        working-directory: sources/fiducia-node.rs
+        run: cargo fmt --all -- --check
+
+      - name: Verify discovery test inventory
+        working-directory: sources/fiducia-node.rs
+        run: |
+          set -euo pipefail
+          cargo test --locked --all-features -- --list | tee /tmp/fiducia-test-list.txt
+          count="$(grep -c '^discovery::tests::' /tmp/fiducia-test-list.txt)"
+          test "$count" -ge 10
+          while IFS= read -r name; do
+            grep -F "discovery::tests::${name}: test" /tmp/fiducia-test-list.txt >/dev/null
+          done < <(node -e "const p=require('../../product-overlay.json'); for (const n of p.requiredRustTests) console.log(n)")
+          printf 'verified %s discovery tests\n' "$count"
+
+      - name: Execute service-discovery PubSub and recovery tests
+        working-directory: sources/fiducia-node.rs
+        run: cargo test --locked --all-features 'discovery::tests::' -- --nocapture
