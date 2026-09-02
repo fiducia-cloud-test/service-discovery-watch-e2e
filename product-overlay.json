@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "profile": "fiducia-service-discovery-watch-v1",
+  "rustToolchain": "1.95.0",
+  "sources": [
+    {
+      "fullName": "fiducia-cloud/fiducia-node.rs",
+      "sha": "4a7baf3f447bcf760b5a4e3955ec38414dd8d330",
+      "path": "sources/fiducia-node.rs"
+    },
+    {
+      "fullName": "fiducia-cloud/fiducia-interfaces",
+      "sha": "ee8fe09f846f5a776d156c0b0d0d15582c8bd539",
+      "path": "sources/fiducia-interfaces"
+    },
+    {
+      "fullName": "fiducia-cloud/fiducia-routing.rs",
+      "sha": "c694bc5c58587bec12989a347e926c0040aacada",
+      "path": "sources/fiducia-routing.rs"
+    }
+  ],
+  "watchContract": {
+    "transport": "server-sent-events",
+    "truth": "linearizable-raft-snapshot",
+    "acceleration": "committed-change-broadcast",
+    "reconnect": "subscribe-before-authoritative-snapshot",
+    "resumeSemantics": "replace-local-state-from-authoritative-snapshot",
+    "eventIds": "monotonic-committed-revision-hints",
+    "durableReplayClaim": false,
+    "boundedClientQueue": 32,
+    "maximumLeaseReconcileMs": 60000,
+    "cacheControl": "no-cache, no-transform"
+  },
+  "requiredRustTests": [
+    "metadata_filters_only_accept_prefixed_nonempty_keys",
+    "filter_instances_requires_all_metadata_matches",
+    "reconcile_delay_targets_earliest_expiry_and_is_bounded",
+    "change_messages_are_revisioned_and_unscoped",
+    "snapshot_messages_are_explicitly_authoritative",
+    "watch_starts_with_snapshot_and_tracks_committed_mutations",
+    "watch_filters_other_services_and_organizations",
+    "lagged_watch_resynchronizes_from_authoritative_state",
+    "lease_expiry_emits_snapshot_without_another_mutation",
+    "watch_response_disables_intermediary_caching"
+  ]
+}
